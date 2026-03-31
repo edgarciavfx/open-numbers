@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Household {
+  id        String    @id @default(cuid())
+  name      String
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  accounts  Account[]
+}
+
+model Account {
+  id          String        @id @default(cuid())
+  householdId String
+  name        String
+  type        AccountType
+  balance     Decimal       @default(0)
+  cutDay      Int?
+  payDay      Int?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  household   Household     @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  transactions      Transaction[]     @relation("AccountTransactions")
+  relatedTransactions Transaction[]    @relation("RelatedAccount")
+}
+
+enum AccountType {
+  DEBIT
+  CREDIT
+  VOUCHER
+}
+
+model Transaction {
+  id               String        @id @default(cuid())
+  accountId        String
+  amount           Decimal
+  type             TransactionType
+  date             DateTime      @default(now())
+  description      String
+  relatedAccountId String?
+  createdAt        DateTime      @default(now())
+  account          Account       @relation("AccountTransactions", fields: [accountId], references: [id], onDelete: Cascade)
+  relatedAccount   Account?      @relation("RelatedAccount", fields: [relatedAccountId], references: [id])
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  TRANSFER
+}
