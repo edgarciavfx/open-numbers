@@ -4,7 +4,16 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import Link from 'next/link'
+import { AppLayout } from '@/components/layout/AppLayout'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { toast } from 'sonner'
+import { Plus, ArrowRightLeft, TrendingUp, TrendingDown, ArrowLeftRight, Receipt } from 'lucide-react'
 
 interface Account {
   id: string
@@ -28,14 +37,12 @@ export default function TransactionsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const queryClient = useQueryClient()
-  const [showForm, setShowForm] = useState(false)
   const [formData, setFormData] = useState({
     accountId: '',
     type: 'EXPENSE' as 'INCOME' | 'EXPENSE',
     amount: '',
     description: ''
   })
-  const [transferMode, setTransferMode] = useState(false)
   const [transferData, setTransferData] = useState({
     fromAccountId: '',
     toAccountId: '',
@@ -56,207 +63,268 @@ export default function TransactionsPage() {
   })
 
   const createMutation = useMutation({
-    mutationFn: () => {
-      return fetch('/api/transactions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          accountId: formData.accountId,
-          type: formData.type,
-          amount: parseFloat(formData.amount),
-          description: formData.description
-        })
-      }).then(res => res.json())
-    },
+    mutationFn: () => fetch('/api/transactions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        accountId: formData.accountId,
+        type: formData.type,
+        amount: parseFloat(formData.amount),
+        description: formData.description
+      })
+    }).then(res => res.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
       queryClient.invalidateQueries({ queryKey: ['accounts'] })
-      setShowForm(false)
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       setFormData({ accountId: '', type: 'EXPENSE', amount: '', description: '' })
-    }
+      toast.success('Transaction added')
+    },
+    onError: () => toast.error('Failed to add transaction')
   })
 
   const transferMutation = useMutation({
-    mutationFn: () => {
-      return fetch('/api/transfer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fromAccountId: transferData.fromAccountId,
-          toAccountId: transferData.toAccountId,
-          amount: parseFloat(transferData.amount),
-          description: transferData.description
-        })
-      }).then(res => res.json())
-    },
+    mutationFn: () => fetch('/api/transfer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fromAccountId: transferData.fromAccountId,
+        toAccountId: transferData.toAccountId,
+        amount: parseFloat(transferData.amount),
+        description: transferData.description
+      })
+    }).then(res => res.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
       queryClient.invalidateQueries({ queryKey: ['accounts'] })
-      setShowForm(false)
-      setTransferMode(false)
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       setTransferData({ fromAccountId: '', toAccountId: '', amount: '', description: '' })
-    }
+      toast.success('Transfer complete')
+    },
+    onError: () => toast.error('Transfer failed')
   })
 
-  if (status === 'loading') return <div className="p-8 text-white">Loading...</div>
+  if (status === 'loading') return <AppLayout><div className="p-8">Loading...</div></AppLayout>
   if (!session) {
     router.push('/login')
     return null
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 p-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-white">Transactions</h1>
-          <div className="flex gap-4">
-            <Link href="/dashboard" className="text-gray-400 hover:text-white">Dashboard</Link>
-            <Link href="/accounts" className="text-gray-400 hover:text-white">Accounts</Link>
-          </div>
+    <AppLayout>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Transactions</h1>
+          <p className="text-muted-foreground">Record income, expenses, and transfers</p>
         </div>
 
-        <button
-          onClick={() => { setShowForm(!showForm); setTransferMode(false) }}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mb-6"
-        >
-          {showForm && !transferMode ? 'Cancel' : 'New Transaction'}
-        </button>
-        <button
-          onClick={() => { setShowForm(!showForm); setTransferMode(true) }}
-          className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 mb-6 ml-4"
-        >
-          {showForm && transferMode ? 'Cancel' : 'Transfer'}
-        </button>
-
-        {showForm && transferMode && (
-          <div className="bg-gray-800 p-6 rounded-lg mb-6">
-            <h2 className="text-xl font-semibold text-white mb-4">Transfer Money</h2>
-            <div className="space-y-4">
-              <select
-                value={transferData.fromAccountId}
-                onChange={(e) => setTransferData({ ...transferData, fromAccountId: e.target.value })}
-                className="w-full p-3 bg-gray-700 text-white rounded border border-gray-600"
-              >
-                <option value="">From Account</option>
-                {accounts.map(account => (
-                  <option key={account.id} value={account.id}>{account.name} (${parseFloat(account.balance).toFixed(2)})</option>
-                ))}
-              </select>
-              
-              <select
-                value={transferData.toAccountId}
-                onChange={(e) => setTransferData({ ...transferData, toAccountId: e.target.value })}
-                className="w-full p-3 bg-gray-700 text-white rounded border border-gray-600"
-              >
-                <option value="">To Account</option>
-                {accounts.map(account => (
-                  <option key={account.id} value={account.id}>{account.name}</option>
-                ))}
-              </select>
-              
-              <input
-                type="number"
-                step="0.01"
-                placeholder="Amount"
-                value={transferData.amount}
-                onChange={(e) => setTransferData({ ...transferData, amount: e.target.value })}
-                className="w-full p-3 bg-gray-700 text-white rounded border border-gray-600"
-              />
-              
-              <input
-                type="text"
-                placeholder="Description (optional)"
-                value={transferData.description}
-                onChange={(e) => setTransferData({ ...transferData, description: e.target.value })}
-                className="w-full p-3 bg-gray-700 text-white rounded border border-gray-600"
-              />
-              
-              <button
-                onClick={() => transferMutation.mutate()}
-                disabled={transferMutation.isPending || !transferData.fromAccountId || !transferData.toAccountId || !transferData.amount}
-                className="w-full bg-purple-600 text-white p-3 rounded hover:bg-purple-700 disabled:opacity-50"
-              >
-                {transferMutation.isPending ? 'Transferring...' : 'Transfer'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {showForm && !transferMode && (
-          <div className="bg-gray-800 p-6 rounded-lg mb-6">
-            <h2 className="text-xl font-semibold text-white mb-4">Add Transaction</h2>
-            <div className="space-y-4">
-              <select
-                value={formData.accountId}
-                onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
-                className="w-full p-3 bg-gray-700 text-white rounded border border-gray-600"
-              >
-                <option value="">Select Account</option>
-                {accounts.map(account => (
-                  <option key={account.id} value={account.id}>{account.name} ({account.type})</option>
-                ))}
-              </select>
-              
-              <select
-                value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
-                className="w-full p-3 bg-gray-700 text-white rounded border border-gray-600"
-              >
-                <option value="EXPENSE">Expense</option>
-                <option value="INCOME">Income</option>
-              </select>
-              
-              <input
-                type="number"
-                step="0.01"
-                placeholder="Amount"
-                value={formData.amount}
-                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                className="w-full p-3 bg-gray-700 text-white rounded border border-gray-600"
-              />
-              
-              <input
-                type="text"
-                placeholder="Description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full p-3 bg-gray-700 text-white rounded border border-gray-600"
-              />
-              
-              <button
-                onClick={() => createMutation.mutate()}
-                disabled={createMutation.isPending || !formData.accountId || !formData.amount}
-                className="w-full bg-green-600 text-white p-3 rounded hover:bg-green-700 disabled:opacity-50"
-              >
-                {createMutation.isPending ? 'Saving...' : 'Save Transaction'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {isLoading ? (
-          <p className="text-gray-400">Loading...</p>
-        ) : transactions.length === 0 ? (
-          <p className="text-gray-400 text-center">No transactions yet.</p>
-        ) : (
-          <div className="space-y-2">
-            {transactions.map(tx => (
-              <div key={tx.id} className="bg-gray-800 p-4 rounded-lg flex justify-between items-center">
-                <div>
-                  <p className="text-white font-medium">{tx.description}</p>
-                  <p className="text-gray-400 text-sm">
-                    {tx.account.name} • {new Date(tx.date).toLocaleDateString()}
-                  </p>
+        <Tabs defaultValue="transaction">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="transaction">
+              <Receipt className="h-4 w-4 mr-2" />
+              Transaction
+            </TabsTrigger>
+            <TabsTrigger value="transfer">
+              <ArrowLeftRight className="h-4 w-4 mr-2" />
+              Transfer
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="transaction" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Add Transaction</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                  <div className="space-y-2">
+                    <Label>Account</Label>
+                    <Select value={formData.accountId} onValueChange={(v) => v && setFormData({ ...formData, accountId: v })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {accounts.map(a => (
+                          <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Type</Label>
+                    <Select value={formData.type} onValueChange={(v) => v && setFormData({ ...formData, type: v as 'INCOME' | 'EXPENSE' })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="EXPENSE">
+                          <div className="flex items-center gap-2">
+                            <TrendingDown className="h-4 w-4 text-destructive" />
+                            Expense
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="INCOME">
+                          <div className="flex items-center gap-2">
+                            <TrendingUp className="h-4 w-4 text-green-500" />
+                            Income
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Amount</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={formData.amount}
+                      onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2 lg:col-span-2">
+                    <Label>Description</Label>
+                    <Input
+                      placeholder="What for?"
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    />
+                  </div>
                 </div>
-                <div className={`text-xl font-bold ${tx.type === 'INCOME' ? 'text-green-400' : tx.type === 'EXPENSE' ? 'text-red-400' : 'text-blue-400'}`}>
-                  {tx.type === 'INCOME' ? '+' : tx.type === 'EXPENSE' ? '-' : '↔'}
-                  ${parseFloat(tx.amount).toFixed(2)}
+                <Button 
+                  className="mt-4" 
+                  onClick={() => createMutation.mutate()}
+                  disabled={createMutation.isPending || !formData.accountId || !formData.amount}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  {createMutation.isPending ? 'Saving...' : 'Save Transaction'}
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="transfer" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Transfer Money</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                  <div className="space-y-2">
+                    <Label>From</Label>
+                    <Select value={transferData.fromAccountId} onValueChange={(v) => v && setTransferData({ ...transferData, fromAccountId: v })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {accounts.map(a => (
+                          <SelectItem key={a.id} value={a.id}>{a.name} (${parseFloat(a.balance).toFixed(2)})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center justify-center">
+                    <ArrowRightLeft className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>To</Label>
+                    <Select value={transferData.toAccountId} onValueChange={(v) => v && setTransferData({ ...transferData, toAccountId: v })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {accounts.map(a => (
+                          <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Amount</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={transferData.amount}
+                      onChange={(e) => setTransferData({ ...transferData, amount: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Description</Label>
+                    <Input
+                      placeholder="Optional"
+                      value={transferData.description}
+                      onChange={(e) => setTransferData({ ...transferData, description: e.target.value })}
+                    />
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+                <Button 
+                  className="mt-4"
+                  onClick={() => transferMutation.mutate()}
+                  disabled={transferMutation.isPending || !transferData.fromAccountId || !transferData.toAccountId || !transferData.amount}
+                >
+                  <ArrowRightLeft className="h-4 w-4 mr-2" />
+                  {transferMutation.isPending ? 'Transferring...' : 'Transfer'}
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>History</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <p className="text-center text-muted-foreground py-4">Loading...</p>
+            ) : transactions.length === 0 ? (
+              <p className="text-center text-muted-foreground py-4">No transactions yet</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Account</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {transactions.map((tx) => (
+                    <TableRow key={tx.id}>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(tx.date).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="font-medium">{tx.description}</TableCell>
+                      <TableCell className="text-muted-foreground">{tx.account.name}</TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center gap-1 ${
+                          tx.type === 'INCOME' ? 'text-green-500' : 
+                          tx.type === 'EXPENSE' ? 'text-destructive' : 'text-blue-500'
+                        }`}>
+                          {tx.type === 'INCOME' && <TrendingUp className="h-4 w-4" />}
+                          {tx.type === 'EXPENSE' && <TrendingDown className="h-4 w-4" />}
+                          {tx.type === 'TRANSFER' && <ArrowRightLeft className="h-4 w-4" />}
+                          {tx.type}
+                        </span>
+                      </TableCell>
+                      <TableCell className={`text-right font-bold ${
+                        tx.type === 'INCOME' ? 'text-green-500' : 
+                        tx.type === 'EXPENSE' ? 'text-destructive' : 'text-blue-500'
+                      }`}>
+                        {tx.type === 'INCOME' ? '+' : tx.type === 'EXPENSE' ? '-' : '↔'}
+                        ${parseFloat(tx.amount).toFixed(2)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
       </div>
-    </div>
+    </AppLayout>
   )
 }

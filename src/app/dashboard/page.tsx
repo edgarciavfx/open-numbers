@@ -3,8 +3,16 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { useState } from 'react'
+import { AppLayout } from '@/components/layout/AppLayout'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { toast } from 'sonner'
+import { Plus, TrendingUp, TrendingDown, CreditCard, Wallet, AlertCircle } from 'lucide-react'
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 
 interface Account {
   id: string
@@ -31,6 +39,35 @@ interface Transaction {
   account: Account
 }
 
+const COLORS = ['#22c55e', '#ef4444', '#eab308']
+
+function LiquidityChart({ data }: { data: { name: string; value: number }[] }) {
+  return (
+    <ResponsiveContainer width="100%" height={200}>
+      <PieChart>
+        <Pie
+          data={data}
+          cx="50%"
+          cy="50%"
+          innerRadius={50}
+          outerRadius={80}
+          paddingAngle={5}
+          dataKey="value"
+        >
+          {data.map((entry, index) => (
+            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+          ))}
+        </Pie>
+        <Tooltip 
+          contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }}
+          itemStyle={{ color: '#fff' }}
+          formatter={(value) => `$${(value as number).toFixed(2)}`}
+        />
+      </PieChart>
+    </ResponsiveContainer>
+  )
+}
+
 export default function DashboardPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -43,7 +80,7 @@ export default function DashboardPage() {
     description: ''
   })
 
-  const { data: dashboard } = useQuery<DashboardData>({
+  const { data: dashboard, isLoading } = useQuery<DashboardData>({
     queryKey: ['dashboard'],
     queryFn: () => fetch('/api/dashboard').then(res => res.json()),
     enabled: !!session
@@ -78,10 +115,24 @@ export default function DashboardPage() {
       queryClient.invalidateQueries({ queryKey: ['accounts'] })
       setQuickEntry(false)
       setFormData({ accountId: '', type: 'EXPENSE', amount: '', description: '' })
+      toast.success('Transaction added')
+    },
+    onError: () => {
+      toast.error('Failed to add transaction')
     }
   })
 
-  if (status === 'loading') return <div className="p-8 text-white">Loading...</div>
+  const resetMutation = useMutation({
+    mutationFn: () => fetch('/api/cleanup', { method: 'DELETE' }).then(res => res.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['accounts'] })
+      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      toast.success('All data cleared')
+    }
+  })
+
+  if (status === 'loading') return <div className="p-8">Loading...</div>
   if (!session) {
     router.push('/login')
     return null
@@ -92,154 +143,206 @@ export default function DashboardPage() {
   const voucherTotal = dashboard?.voucherTotal ?? 0
   const liquidity = dashboard?.liquidity ?? 0
 
-  return (
-    <div className="min-h-screen bg-gray-900 p-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-white">PennyWise</h1>
-          <div className="flex gap-4">
-            <button
-              onClick={() => setQuickEntry(!quickEntry)}
-              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-            >
-              {quickEntry ? 'Cancel' : '+ Quick Entry'}
-            </button>
-            <Link href="/accounts" className="text-gray-400 hover:text-white">Accounts</Link>
-            <Link href="/transactions" className="text-gray-400 hover:text-white">Transactions</Link>
-            <button
-              onClick={() => {
-                if (confirm('Delete all transactions and accounts?')) {
-                  fetch('/api/cleanup', { method: 'DELETE' }).then(() => {
-                    queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-                    queryClient.invalidateQueries({ queryKey: ['accounts'] })
-                    queryClient.invalidateQueries({ queryKey: ['transactions'] })
-                  })
-                }
-              }}
-              className="text-red-400 hover:text-red-300"
-            >
-              Reset
-            </button>
-            <button
-              onClick={() => router.push('/api/auth/signout')}
-              className="text-gray-400 hover:text-white"
-            >
-              Sign Out
-            </button>
-          </div>
-        </div>
+  const pieData = [
+    { name: 'Cash', value: debitTotal },
+    { name: 'Debt', value: Math.abs(creditTotal) },
+    { name: 'Vouchers', value: voucherTotal }
+  ].filter(d => d.value > 0)
 
+  return (
+    <AppLayout>
+      <div className="space-y-6">
+        {/* Quick Entry */}
         {quickEntry && (
-          <div className="bg-gray-800 p-4 rounded-lg mb-6">
-            <div className="flex gap-2">
-              <select
-                value={formData.accountId}
-                onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
-                className="p-2 bg-gray-700 text-white rounded border border-gray-600 text-sm"
-              >
-                <option value="">Account</option>
-                {accounts.map(a => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
-              </select>
-              <select
-                value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
-                className="p-2 bg-gray-700 text-white rounded border border-gray-600 text-sm"
-              >
-                <option value="EXPENSE">-</option>
-                <option value="INCOME">+</option>
-              </select>
-              <input
-                type="number"
-                placeholder="0.00"
-                value={formData.amount}
-                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                className="w-24 p-2 bg-gray-700 text-white rounded border border-gray-600 text-sm"
-              />
-              <input
-                type="text"
-                placeholder="Description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="flex-1 p-2 bg-gray-700 text-white rounded border border-gray-600 text-sm"
-              />
-              <button
-                onClick={() => createMutation.mutate()}
-                disabled={createMutation.isPending || !formData.accountId || !formData.amount}
-                className="px-4 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm disabled:opacity-50"
-              >
-                Save
-              </button>
-            </div>
-          </div>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-wrap gap-4 items-end">
+                <div className="w-full sm:w-40">
+                  <Label>Account</Label>
+                  <Select value={formData.accountId} onValueChange={(v) => v && setFormData({ ...formData, accountId: v })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {accounts.map(a => (
+                        <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-24">
+                  <Label>Type</Label>
+                  <Select value={formData.type} onValueChange={(v) => v && setFormData({ ...formData, type: v as 'INCOME' | 'EXPENSE' })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="EXPENSE">- Expense</SelectItem>
+                      <SelectItem value="INCOME">+ Income</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-28">
+                  <Label>Amount</Label>
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    value={formData.amount}
+                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                  />
+                </div>
+                <div className="flex-1">
+                  <Label>Description</Label>
+                  <Input
+                    placeholder="What for?"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending || !formData.accountId || !formData.amount}>
+                    {createMutation.isPending ? 'Saving...' : 'Save'}
+                  </Button>
+                  <Button variant="outline" onClick={() => setQuickEntry(false)}>Cancel</Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-gray-800 p-6 rounded-lg">
-            <p className="text-gray-400 text-sm">Cash (Debit)</p>
-            <p className="text-2xl font-bold text-green-400">${debitTotal.toFixed(2)}</p>
-          </div>
-          <div className="bg-gray-800 p-6 rounded-lg">
-            <p className="text-gray-400 text-sm">Vouchers</p>
-            <p className="text-2xl font-bold text-green-400">${voucherTotal.toFixed(2)}</p>
-          </div>
-          <div className="bg-gray-800 p-6 rounded-lg">
-            <p className="text-gray-400 text-sm">Debt (Credit)</p>
-            <p className="text-2xl font-bold text-red-400">${creditTotal.toFixed(2)}</p>
-          </div>
-          <div className={`bg-gray-800 p-6 rounded-lg ${liquidity < 0 ? 'ring-2 ring-red-500' : ''}`}>
-            <p className="text-gray-400 text-sm">Liquidity</p>
-            <p className={`text-2xl font-bold ${liquidity >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              ${liquidity.toFixed(2)}
-            </p>
-          </div>
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className={liquidity < 0 ? 'border-destructive' : ''}>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                <Wallet className="h-4 w-4" />
+                <span className="text-sm">Cash</span>
+              </div>
+              <p className="text-2xl font-bold text-green-500">${debitTotal.toFixed(2)}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                <CreditCard className="h-4 w-4" />
+                <span className="text-sm">Vouchers</span>
+              </div>
+              <p className="text-2xl font-bold text-green-500">${voucherTotal.toFixed(2)}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                <TrendingDown className="h-4 w-4" />
+                <span className="text-sm">Debt</span>
+              </div>
+              <p className="text-2xl font-bold text-red-500">${creditTotal.toFixed(2)}</p>
+            </CardContent>
+          </Card>
+          <Card className={liquidity < 0 ? 'border-destructive ring-2 ring-destructive/20' : ''}>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                {liquidity < 0 ? <AlertCircle className="h-4 w-4 text-destructive" /> : <TrendingUp className="h-4 w-4" />}
+                <span className="text-sm">Liquidity</span>
+              </div>
+              <p className={`text-2xl font-bold ${liquidity >= 0 ? 'text-green-500' : 'text-destructive'}`}>
+                ${liquidity.toFixed(2)}
+              </p>
+            </CardContent>
+          </Card>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
-          <div className="bg-gray-800 p-6 rounded-lg">
-            <h2 className="text-xl font-semibold text-white mb-4">Accounts</h2>
-            {!dashboard?.accounts?.length ? (
-              <p className="text-gray-400">No accounts. <Link href="/accounts" className="text-blue-400">Create one</Link></p>
-            ) : (
-              <div className="space-y-2">
-                {dashboard.accounts.map((account) => (
-                  <div key={account.id} className="flex justify-between items-center p-3 bg-gray-700 rounded">
-                    <div>
-                      <span className="text-white">{account.name}</span>
-                      <span className="ml-2 text-xs text-gray-400">({account.type})</span>
-                    </div>
-                    <span className={`font-bold ${parseFloat(account.balance) < 0 ? 'text-red-400' : 'text-green-400'}`}>
-                      ${parseFloat(account.balance).toFixed(2)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+        <div className="flex justify-end">
+          <Button variant={quickEntry ? 'outline' : 'default'} onClick={() => setQuickEntry(!quickEntry)}>
+            <Plus className="h-4 w-4 mr-2" />
+            {quickEntry ? 'Cancel' : 'Quick Entry'}
+          </Button>
+        </div>
 
-          <div className="bg-gray-800 p-6 rounded-lg">
-            <h2 className="text-xl font-semibold text-white mb-4">Recent</h2>
-            {!recentTx.length ? (
-              <p className="text-gray-400">No transactions yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {recentTx.slice(0, 5).map((tx) => (
-                  <div key={tx.id} className="flex justify-between items-center p-2 bg-gray-700 rounded">
-                    <div>
-                      <span className="text-white text-sm">{tx.description}</span>
-                      <span className="ml-2 text-xs text-gray-400">{tx.account.name}</span>
+        {/* Charts & Lists */}
+        <div className="grid lg:grid-cols-2 gap-6">
+          {/* Accounts */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Accounts</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!dashboard?.accounts?.length ? (
+                <p className="text-muted-foreground text-center py-4">No accounts yet</p>
+              ) : (
+                <div className="space-y-3">
+                  {dashboard.accounts.map((account) => (
+                    <div key={account.id} className="flex justify-between items-center p-3 bg-muted rounded-lg">
+                      <div>
+                        <span className="font-medium">{account.name}</span>
+                        <span className="ml-2 text-xs text-muted-foreground">({account.type})</span>
+                      </div>
+                      <span className={`font-bold ${parseFloat(account.balance) < 0 ? 'text-destructive' : 'text-green-500'}`}>
+                        ${parseFloat(account.balance).toFixed(2)}
+                      </span>
                     </div>
-                    <span className={`text-sm font-bold ${tx.type === 'INCOME' ? 'text-green-400' : tx.type === 'EXPENSE' ? 'text-red-400' : 'text-blue-400'}`}>
-                      {tx.type === 'INCOME' ? '+' : tx.type === 'EXPENSE' ? '-' : '↔'}${parseFloat(tx.amount).toFixed(2)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Breakdown</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {pieData.length > 0 ? (
+                <LiquidityChart data={pieData} />
+              ) : (
+                <p className="text-muted-foreground text-center py-8">Add accounts to see breakdown</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recent Transactions */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="text-lg">Recent Transactions</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!recentTx.length ? (
+                <p className="text-muted-foreground text-center py-4">No transactions yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {recentTx.slice(0, 8).map((tx) => (
+                    <div key={tx.id} className="flex justify-between items-center p-3 bg-muted rounded-lg">
+                      <div>
+                        <span className="font-medium">{tx.description}</span>
+                        <span className="ml-2 text-xs text-muted-foreground">{tx.account.name} • {new Date(tx.date).toLocaleDateString()}</span>
+                      </div>
+                      <span className={`font-bold ${tx.type === 'INCOME' ? 'text-green-500' : tx.type === 'EXPENSE' ? 'text-destructive' : 'text-blue-500'}`}>
+                        {tx.type === 'INCOME' ? '+' : tx.type === 'EXPENSE' ? '-' : '↔'}${parseFloat(tx.amount).toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Reset */}
+        <div className="flex justify-end pt-4">
+          <Button 
+            variant="destructive" 
+            size="sm"
+            onClick={() => {
+              if (confirm('Delete all transactions and accounts?')) {
+                resetMutation.mutate()
+              }
+            }}
+          >
+            Reset All Data
+          </Button>
         </div>
       </div>
-    </div>
+    </AppLayout>
   )
 }
