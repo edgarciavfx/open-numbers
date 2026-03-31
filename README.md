@@ -1,36 +1,116 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PennyWise
+
+Liquidity control system - know how much you can spend today, never miss payments.
+
+## What is PennyWise?
+
+PennyWise is **not** an accounting app. It's a liquidity control system focused on:
+- Know exactly how much you can spend today
+- Never miss critical payment dates
+- Visualize real money vs committed money
+
+## Features
+
+- **Dashboard** - See your liquidity at a glance (cash + vouchers - debt)
+- **Quick Entry** - Add transactions in 2-3 clicks
+- **Account Types** - Debit (cash), Credit (debt), Vouchers (prepaid)
+- **Transfers** - Move money between accounts (pay credit cards properly)
+- **Reset** - Clear all data to start fresh
+
+## Tech Stack
+
+- **Frontend**: Next.js 14 (App Router), React, Tailwind CSS
+- **Backend**: Next.js API Routes
+- **Database**: Neon PostgreSQL
+- **ORM**: Prisma
+- **Auth**: NextAuth.js (credentials)
+- **Testing**: Jest (unit), Playwright (E2E)
+- **CI/CD**: GitHub Actions
+- **Deploy**: Vercel
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 20+
+- PostgreSQL (Neon) database
+
+### Setup
 
 ```bash
+# Install dependencies
+npm install
+
+# Generate Prisma client
+npx prisma generate
+
+# Push schema to database
+npx prisma db push
+
+# Run development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Create `.env` file:
 
-## Learn More
+```env
+DATABASE_URL="postgresql://..."
+NEXTAUTH_SECRET="your-secret"
+NEXTAUTH_URL="http://localhost:3000"
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Testing
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+# Run unit tests
+npm test
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# Run unit tests with coverage
+npm run test:coverage
 
-## Deploy on Vercel
+# Run E2E tests
+npm run e2e
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+# Run E2E tests with UI
+npm run e2e:ui
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET/POST | `/api/accounts` | List/Create accounts |
+| DELETE | `/api/accounts/[id]` | Delete account |
+| GET/POST | `/api/transactions` | List/Create transactions |
+| POST | `/api/transfer` | Transfer between accounts |
+| GET | `/api/dashboard` | Get liquidity summary |
+| DELETE | `/api/cleanup` | Delete all data |
+
+## Project Structure
+
+```
+├── src/
+│   ├── app/              # Next.js App Router pages
+│   │   ├── api/          # API routes
+│   │   ├── dashboard/    # Dashboard page
+│   │   ├── accounts/     # Accounts page
+│   │   └── transactions/ # Transactions page
+│   ├── lib/              # Utilities
+│   │   ├── db.ts         # Prisma client
+│   │   ├── auth.ts       # NextAuth config
+│   │   └── utils.ts      # Helper functions
+│   └── components/       # React components
+├── prisma/
+│   └── schema.prisma     # Database schema
+├── tests/                # E2E tests (Playwright)
+├── __tests__/            # Unit tests (Jest)
+└── .github/workflows/   # CI/CD
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file.
