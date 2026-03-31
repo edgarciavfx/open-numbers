@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { prisma } from '@/lib/db'
 import { authOptions } from '@/lib/auth'
+import { Account, Household } from '@prisma/client'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -27,19 +28,19 @@ export async function GET() {
     })
   }
 
-  const accounts = household.accounts
+  const accounts: Account[] = household.accounts
 
   const debitTotal = accounts
-    .filter((a: { type: string }) => a.type === 'DEBIT')
-    .reduce((sum: number, a: { balance: { toNumber: () => number } }) => sum + a.balance.toNumber(), 0)
+    .filter(a => a.type === 'DEBIT')
+    .reduce((sum: number, a) => sum + Number(a.balance), 0)
 
   const creditTotal = accounts
-    .filter((a: { type: string }) => a.type === 'CREDIT')
-    .reduce((sum: number, a: { balance: { toNumber: () => number } }) => sum + a.balance.toNumber(), 0)
+    .filter(a => a.type === 'CREDIT')
+    .reduce((sum: number, a) => sum + Number(a.balance), 0)
 
   const voucherTotal = accounts
-    .filter((a: { type: string }) => a.type === 'VOUCHER')
-    .reduce((sum: number, a: { balance: { toNumber: () => number } }) => sum + a.balance.toNumber(), 0)
+    .filter(a => a.type === 'VOUCHER')
+    .reduce((sum: number, a) => sum + Number(a.balance), 0)
 
   const liquidity = debitTotal + voucherTotal + creditTotal
 
@@ -48,11 +49,11 @@ export async function GET() {
     creditTotal,
     voucherTotal,
     liquidity,
-    accounts: accounts.map((a: { id: string; name: string; type: string; balance: { toNumber: () => number }; cutDay: number | null; payDay: number | null }) => ({
+    accounts: accounts.map(a => ({
       id: a.id,
       name: a.name,
       type: a.type,
-      balance: a.balance.toNumber().toString(),
+      balance: a.balance.toString(),
       cutDay: a.cutDay,
       payDay: a.payDay
     }))
