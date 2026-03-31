@@ -30,16 +30,16 @@ export async function GET() {
   const accounts = household.accounts
 
   const debitTotal = accounts
-    .filter(a => a.type === 'DEBIT')
-    .reduce((sum, a) => sum + Number(a.balance), 0)
+    .filter((a: { type: string }) => a.type === 'DEBIT')
+    .reduce((sum: number, a: { balance: { toNumber: () => number } }) => sum + a.balance.toNumber(), 0)
 
   const creditTotal = accounts
-    .filter(a => a.type === 'CREDIT')
-    .reduce((sum, a) => sum + Number(a.balance), 0)
+    .filter((a: { type: string }) => a.type === 'CREDIT')
+    .reduce((sum: number, a: { balance: { toNumber: () => number } }) => sum + a.balance.toNumber(), 0)
 
   const voucherTotal = accounts
-    .filter(a => a.type === 'VOUCHER')
-    .reduce((sum, a) => sum + Number(a.balance), 0)
+    .filter((a: { type: string }) => a.type === 'VOUCHER')
+    .reduce((sum: number, a: { balance: { toNumber: () => number } }) => sum + a.balance.toNumber(), 0)
 
   const liquidity = debitTotal + voucherTotal + creditTotal
 
@@ -48,11 +48,11 @@ export async function GET() {
     creditTotal,
     voucherTotal,
     liquidity,
-    accounts: accounts.map(a => ({
+    accounts: accounts.map((a: { id: string; name: string; type: string; balance: { toNumber: () => number }; cutDay: number | null; payDay: number | null }) => ({
       id: a.id,
       name: a.name,
       type: a.type,
-      balance: a.balance.toString(),
+      balance: a.balance.toNumber().toString(),
       cutDay: a.cutDay,
       payDay: a.payDay
     }))
