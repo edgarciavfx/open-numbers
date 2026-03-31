@@ -57,7 +57,7 @@ export async function GET() {
     creditTotal,
     voucherTotal,
     liquidity,
-    accounts: accounts.map(a => ({
+    accounts: accounts.map((a: AccountType) => ({
       id: a.id,
       name: a.name,
       type: a.type,

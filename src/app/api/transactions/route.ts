@@ -22,7 +22,7 @@ export async function GET() {
     where: { householdId: household.id },
     select: { id: true }
   })
-  const accountIds = accounts.map(a => a.id)
+  const accountIds = accounts.map((a: { id: string }) => a.id)
 
   const transactions = await prisma.transaction.findMany({
     where: { accountId: { in: accountIds } },
