@@ -2,7 +2,15 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { prisma } from '@/lib/db'
 import { authOptions } from '@/lib/auth'
-import { Account, Household } from '@prisma/client'
+
+interface AccountType {
+  id: string
+  name: string
+  type: 'DEBIT' | 'CREDIT' | 'VOUCHER'
+  balance: unknown
+  cutDay: number | null
+  payDay: number | null
+}
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -28,7 +36,7 @@ export async function GET() {
     })
   }
 
-  const accounts: Account[] = household.accounts
+  const accounts = household.accounts as unknown as AccountType[]
 
   const debitTotal = accounts
     .filter(a => a.type === 'DEBIT')
@@ -53,7 +61,7 @@ export async function GET() {
       id: a.id,
       name: a.name,
       type: a.type,
-      balance: a.balance.toString(),
+      balance: String(a.balance),
       cutDay: a.cutDay,
       payDay: a.payDay
     }))
