@@ -107,6 +107,20 @@ export default function DashboardPage() {
             <Link href="/accounts" className="text-gray-400 hover:text-white">Accounts</Link>
             <Link href="/transactions" className="text-gray-400 hover:text-white">Transactions</Link>
             <button
+              onClick={() => {
+                if (confirm('Delete all transactions and accounts?')) {
+                  fetch('/api/cleanup', { method: 'DELETE' }).then(() => {
+                    queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+                    queryClient.invalidateQueries({ queryKey: ['accounts'] })
+                    queryClient.invalidateQueries({ queryKey: ['transactions'] })
+                  })
+                }
+              }}
+              className="text-red-400 hover:text-red-300"
+            >
+              Reset
+            </button>
+            <button
               onClick={() => router.push('/api/auth/signout')}
               className="text-gray-400 hover:text-white"
             >
